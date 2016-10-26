@@ -74,7 +74,7 @@ import android.util.Log;
 public class NanoHTTPD
 {
 	private final String LOGTAG = "NanoHTTPD";
-	
+
 	// ==================================================
 	// API parts
 	// ==================================================
@@ -101,14 +101,14 @@ public class NanoHTTPD
 			String value = (String)e.nextElement();
 			Log.i( LOGTAG, "  HDR: '" + value + "' = '" + header.getProperty( value ) + "'" );
 		}
-		
+
 		e = parms.propertyNames();
 		while ( e.hasMoreElements())
 		{
 			String value = (String)e.nextElement();
 			Log.i( LOGTAG, "  PRM: '" + value + "' = '" + parms.getProperty( value ) + "'" );
 		}
-		
+
 		e = files.propertyNames();
 		while ( e.hasMoreElements())
 		{
@@ -245,7 +245,7 @@ public class NanoHTTPD
 		myThread.setDaemon( true );
 		myThread.start();
 	}
-	
+
 	/**
 	 * Starts a HTTP server to given port.<p>
 	 * Throws an IOException if the socket is already in use
@@ -294,7 +294,7 @@ public class NanoHTTPD
 	{
 		PrintStream myOut = System.out;
 		PrintStream myErr = System.err;
-		
+
 		myOut.println( "NanoHTTPD 1.25 (C) 2001,2005-2011 Jarno Elonen and (C) 2010 Konstantinos Togias\n" +
 				"(Command line options: [-p port] [-d root-dir] [--licence])\n" );
 
@@ -427,7 +427,7 @@ public class NanoHTTPD
 
 				// If the method is POST, there may be parameters
 				// in data section, too, read it:
-				if ( method.equalsIgnoreCase( "POST" ))
+				if (method != null && method.equalsIgnoreCase( "POST" ))
 				{
 					String contentType = "";
 					String contentTypeHeader = header.getProperty("content-type");
@@ -466,7 +466,7 @@ public class NanoHTTPD
 					}
 				}
 
-				if ( method.equalsIgnoreCase( "PUT" ))
+				if (method != null && method.equalsIgnoreCase( "PUT" ))
 					files.put("content", saveTmpFile( fbuf, 0, f.size()));
 
 				// Ok, now do the serve()
@@ -900,196 +900,200 @@ public class NanoHTTPD
 			boolean allowDirectoryListing )
 	{
 		Response res = null;
-		
+
 		// Make sure we won't die of an exception later
 		if ( !homeDir.isDirectory())
 			res = new Response( HTTP_INTERNALERROR, MIME_PLAINTEXT,
 					"INTERNAL ERRROR: serveFile(): given homeDir is not a directory." );
 
-		if ( res == null )
-		{
-			// Remove URL arguments
-			uri = uri.trim().replace( File.separatorChar, '/' );
-			if ( uri.indexOf( '?' ) >= 0 )
-				uri = uri.substring(0, uri.indexOf( '?' ));
-
-			// Prohibit getting out of current directory
-			if ( uri.startsWith( ".." ) || uri.endsWith( ".." ) || uri.indexOf( "../" ) >= 0 )
-				res = new Response( HTTP_FORBIDDEN, MIME_PLAINTEXT,
-						"FORBIDDEN: Won't serve ../ for security reasons." );
-		}
-
-		AndroidFile f = new AndroidFile( homeDir, uri );
-		if ( res == null && !f.exists())
-			res = new Response( HTTP_NOTFOUND, MIME_PLAINTEXT,
-					"Error 404, file not found." );
-
-		// List the directory, if necessary
-		if ( res == null && f.isDirectory())
-		{
-			// Browsers get confused without '/' after the
-			// directory, send a redirect.
-			if ( !uri.endsWith( "/" ))
-			{
-				uri += "/";
-				res = new Response( HTTP_REDIRECT, MIME_HTML,
-						"<html><body>Redirected: <a href=\"" + uri + "\">" +
-								uri + "</a></body></html>");
-				res.addHeader( "Location", uri );
-			}
-
+		if ( uri != null ) {
 			if ( res == null )
 			{
-				// First try index.html and index.htm 
-				if ( new AndroidFile( f, "index.html" ).exists())
-					f = new AndroidFile( homeDir, uri + "/index.html" );
-				else if ( new AndroidFile( f, "index.htm" ).exists())
-					f = new AndroidFile( homeDir, uri + "/index.htm" );
-				// No index file, list the directory if it is readable
-				else if ( allowDirectoryListing && f.canRead() )
-				{
-					String[] files = f.list();
-					String msg = "<html><body><h1>Directory " + uri + "</h1><br/>";
+				// Remove URL arguments
+				uri = uri.trim().replace( File.separatorChar, '/' );
+				if ( uri.indexOf( '?' ) >= 0 )
+					uri = uri.substring(0, uri.indexOf( '?' ));
 
-					if ( uri.length() > 1 )
-					{
-						String u = uri.substring( 0, uri.length()-1 );
-						int slash = u.lastIndexOf( '/' );
-						if ( slash >= 0 && slash  < u.length())
-							msg += "<b><a href=\"" + uri.substring(0, slash+1) + "\">..</a></b><br/>";
-					}
-
-					if (files!=null)
-					{
-						for ( int i=0; i<files.length; ++i )
-						{
-							AndroidFile curFile = new AndroidFile( f, files[i] );
-							boolean dir = curFile.isDirectory();
-							if ( dir )
-							{
-								msg += "<b>";
-								files[i] += "/";
-							}
-
-							msg += "<a href=\"" + encodeUri( uri + files[i] ) + "\">" +
-									files[i] + "</a>";
-
-							// Show file size
-							if ( curFile.isFile())
-							{
-								long len = curFile.length();
-								msg += " &nbsp;<font size=2>(";
-								if ( len < 1024 )
-									msg += len + " bytes";
-								else if ( len < 1024 * 1024 )
-									msg += len/1024 + "." + (len%1024/10%100) + " KB";
-								else
-									msg += len/(1024*1024) + "." + len%(1024*1024)/10%100 + " MB";
-
-								msg += ")</font>";
-							}
-							msg += "<br/>";
-							if ( dir ) msg += "</b>";
-						}
-					}
-					msg += "</body></html>";
-					res = new Response( HTTP_OK, MIME_HTML, msg );
-				}
-				else
-				{
+				// Prohibit getting out of current directory
+				if ( uri.startsWith( ".." ) || uri.endsWith( ".." ) || uri.indexOf( "../" ) >= 0 )
 					res = new Response( HTTP_FORBIDDEN, MIME_PLAINTEXT,
-							"FORBIDDEN: No directory listing." );
-				}
+							"FORBIDDEN: Won't serve ../ for security reasons." );
 			}
-		}
 
-		try
-		{
-			if ( res == null )
+			AndroidFile f = new AndroidFile( homeDir, uri );
+			if ( res == null && !f.exists())
+				res = new Response( HTTP_NOTFOUND, MIME_PLAINTEXT,
+						"Error 404, file not found." );
+
+			// List the directory, if necessary
+			if ( res == null && f.isDirectory())
 			{
-				// Get MIME type from file name extension, if possible
-				String mime = null;
-				int dot = f.getCanonicalPath().lastIndexOf( '.' );
-				if ( dot >= 0 )
-					mime = (String)theMimeTypes.get( f.getCanonicalPath().substring( dot + 1 ).toLowerCase());
-				if ( mime == null )
-					mime = MIME_DEFAULT_BINARY;
-
-				// Calculate etag
-				String etag = Integer.toHexString((f.getAbsolutePath() + f.lastModified() + "" + f.length()).hashCode());
-				
-				//System.out.println( String.format("mime: %s, etag: %s", mime, etag));
-
-				// Support (simple) skipping:
-				long startFrom = 0;
-				long endAt = -1;
-				String range = header.getProperty( "range" );
-				if ( range != null )
+				// Browsers get confused without '/' after the
+				// directory, send a redirect.
+				if ( !uri.endsWith( "/" ))
 				{
-					if ( range.startsWith( "bytes=" ))
+					uri += "/";
+					res = new Response( HTTP_REDIRECT, MIME_HTML,
+							"<html><body>Redirected: <a href=\"" + uri + "\">" +
+									uri + "</a></body></html>");
+					res.addHeader( "Location", uri );
+				}
+
+				if ( res == null )
+				{
+					// First try index.html and index.htm
+					if ( new AndroidFile( f, "index.html" ).exists())
+						f = new AndroidFile( homeDir, uri + "/index.html" );
+					else if ( new AndroidFile( f, "index.htm" ).exists())
+						f = new AndroidFile( homeDir, uri + "/index.htm" );
+					// No index file, list the directory if it is readable
+					else if ( allowDirectoryListing && f.canRead() )
 					{
-						range = range.substring( "bytes=".length());
-						int minus = range.indexOf( '-' );
-						try {
-							if ( minus > 0 )
+						String[] files = f.list();
+						String msg = "<html><body><h1>Directory " + uri + "</h1><br/>";
+
+						if ( uri.length() > 1 )
+						{
+							String u = uri.substring( 0, uri.length()-1 );
+							int slash = u.lastIndexOf( '/' );
+							if ( slash >= 0 && slash  < u.length())
+								msg += "<b><a href=\"" + uri.substring(0, slash+1) + "\">..</a></b><br/>";
+						}
+
+						if (files!=null)
+						{
+							for ( int i=0; i<files.length; ++i )
 							{
-								startFrom = Long.parseLong( range.substring( 0, minus ));
-								endAt = Long.parseLong( range.substring( minus+1 ));
+								AndroidFile curFile = new AndroidFile( f, files[i] );
+								boolean dir = curFile.isDirectory();
+								if ( dir )
+								{
+									msg += "<b>";
+									files[i] += "/";
+								}
+
+								msg += "<a href=\"" + encodeUri( uri + files[i] ) + "\">" +
+										files[i] + "</a>";
+
+								// Show file size
+								if ( curFile.isFile())
+								{
+									long len = curFile.length();
+									msg += " &nbsp;<font size=2>(";
+									if ( len < 1024 )
+										msg += len + " bytes";
+									else if ( len < 1024 * 1024 )
+										msg += len/1024 + "." + (len%1024/10%100) + " KB";
+									else
+										msg += len/(1024*1024) + "." + len%(1024*1024)/10%100 + " MB";
+
+									msg += ")</font>";
+								}
+								msg += "<br/>";
+								if ( dir ) msg += "</b>";
 							}
 						}
-						catch ( NumberFormatException nfe ) {}
-					}
-				}
-
-				// Change return code and add Content-Range header when skipping is requested
-				long fileLen = f.length();
-				//System.out.println( String.format("file length: %d", fileLen));
-				
-				if (range != null && startFrom >= 0)
-				{
-					if ( startFrom >= fileLen)
-					{
-						res = new Response( HTTP_RANGE_NOT_SATISFIABLE, MIME_PLAINTEXT, "" );
-						res.addHeader( "Content-Range", "bytes 0-0/" + fileLen);
-						res.addHeader( "ETag", etag);
+						msg += "</body></html>";
+						res = new Response( HTTP_OK, MIME_HTML, msg );
 					}
 					else
 					{
-						if ( endAt < 0 )
-							endAt = fileLen-1;
-						long newLen = endAt - startFrom + 1;
-						if ( newLen < 0 ) newLen = 0;
-
-						final long dataLen = newLen;
-						//InputStream fis = new FileInputStream( f ) {
-						//	public int available() throws IOException { return (int)dataLen; }
-						//};
-						InputStream fis = f.getInputStream();
-						fis.skip( startFrom );
-
-						res = new Response( HTTP_PARTIALCONTENT, mime, fis );
-						res.addHeader( "Content-Length", "" + dataLen);
-						res.addHeader( "Content-Range", "bytes " + startFrom + "-" + endAt + "/" + fileLen);
-						res.addHeader( "ETag", etag);
-					}
-				}
-				else
-				{
-					if (etag.equals(header.getProperty("if-none-match")))
-						res = new Response( HTTP_NOTMODIFIED, mime, "");
-					else
-					{
-						//res = new Response( HTTP_OK, mime, new FileInputStream( f ));
-						res = new Response( HTTP_OK, mime, f.getInputStream());
-						res.addHeader( "Content-Length", "" + fileLen);
-						res.addHeader( "ETag", etag);
+						res = new Response( HTTP_FORBIDDEN, MIME_PLAINTEXT,
+								"FORBIDDEN: No directory listing." );
 					}
 				}
 			}
-		}
-		catch( IOException ioe )
-		{
-			res = new Response( HTTP_FORBIDDEN, MIME_PLAINTEXT, "FORBIDDEN: Reading file failed." );
+
+			try
+			{
+				if ( res == null )
+				{
+					// Get MIME type from file name extension, if possible
+					String mime = null;
+					int dot = f.getCanonicalPath().lastIndexOf( '.' );
+					if ( dot >= 0 )
+						mime = (String)theMimeTypes.get( f.getCanonicalPath().substring( dot + 1 ).toLowerCase());
+					if ( mime == null )
+						mime = MIME_DEFAULT_BINARY;
+
+					// Calculate etag
+					String etag = Integer.toHexString((f.getAbsolutePath() + f.lastModified() + "" + f.length()).hashCode());
+
+					//System.out.println( String.format("mime: %s, etag: %s", mime, etag));
+
+					// Support (simple) skipping:
+					long startFrom = 0;
+					long endAt = -1;
+					String range = header.getProperty( "range" );
+					if ( range != null )
+					{
+						if ( range.startsWith( "bytes=" ))
+						{
+							range = range.substring( "bytes=".length());
+							int minus = range.indexOf( '-' );
+							try {
+								if ( minus > 0 )
+								{
+									startFrom = Long.parseLong( range.substring( 0, minus ));
+									endAt = Long.parseLong( range.substring( minus+1 ));
+								}
+							}
+							catch ( NumberFormatException nfe ) {}
+						}
+					}
+
+					// Change return code and add Content-Range header when skipping is requested
+					long fileLen = f.length();
+					//System.out.println( String.format("file length: %d", fileLen));
+
+					if (range != null && startFrom >= 0)
+					{
+						if ( startFrom >= fileLen)
+						{
+							res = new Response( HTTP_RANGE_NOT_SATISFIABLE, MIME_PLAINTEXT, "" );
+							res.addHeader( "Content-Range", "bytes 0-0/" + fileLen);
+							res.addHeader( "ETag", etag);
+						}
+						else
+						{
+							if ( endAt < 0 )
+								endAt = fileLen-1;
+							long newLen = endAt - startFrom + 1;
+							if ( newLen < 0 ) newLen = 0;
+
+							final long dataLen = newLen;
+							//InputStream fis = new FileInputStream( f ) {
+							//	public int available() throws IOException { return (int)dataLen; }
+							//};
+							InputStream fis = f.getInputStream();
+							fis.skip( startFrom );
+
+							res = new Response( HTTP_PARTIALCONTENT, mime, fis );
+							res.addHeader( "Content-Length", "" + dataLen);
+							res.addHeader( "Content-Range", "bytes " + startFrom + "-" + endAt + "/" + fileLen);
+							res.addHeader( "ETag", etag);
+						}
+					}
+					else
+					{
+						if (etag.equals(header.getProperty("if-none-match")))
+							res = new Response( HTTP_NOTMODIFIED, mime, "");
+						else
+						{
+							//res = new Response( HTTP_OK, mime, new FileInputStream( f ));
+							res = new Response( HTTP_OK, mime, f.getInputStream());
+							res.addHeader( "Content-Length", "" + fileLen);
+							res.addHeader( "ETag", etag);
+						}
+					}
+				}
+			}
+			catch( IOException ioe )
+			{
+				res = new Response( HTTP_FORBIDDEN, MIME_PLAINTEXT, "FORBIDDEN: Reading file failed." );
+			}
+		} else {
+			res = new Response( HTTP_FORBIDDEN, MIME_PLAINTEXT, "ERROR: Null URI." );
 		}
 
 		res.addHeader( "Accept-Ranges", "bytes"); // Announce that the file server accepts partial content requestes
@@ -1133,7 +1137,7 @@ public class NanoHTTPD
 	}
 
 	private static int theBufferSize = 16 * 1024;
-	
+
 	/**
 	 * GMT date formatter
 	 */
@@ -1174,4 +1178,3 @@ public class NanoHTTPD
 					"(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\n"+
 					"OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.";
 }
-
